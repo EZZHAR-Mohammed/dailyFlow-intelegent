@@ -37,12 +37,16 @@ class UserRepository:
             self.db.commit()
 
     def save_refresh_token(self, user_id: int, token: str, expires_at: datetime) -> RefreshTokenORM:
+        # Always strip token to avoid whitespace mismatch on retrieval
+        token = token.strip()
         rt = RefreshTokenORM(user_id=user_id, token=token, expires_at=expires_at)
         self.db.add(rt)
         self.db.commit()
         return rt
 
     def get_refresh_token(self, token: str) -> Optional[RefreshTokenORM]:
+        # Strip token before DB lookup — prevents mismatch from whitespace/newlines
+        token = token.strip()
         return self.db.query(RefreshTokenORM).filter(
             RefreshTokenORM.token == token,
             RefreshTokenORM.revoked == False,
@@ -50,6 +54,7 @@ class UserRepository:
         ).first()
 
     def revoke_refresh_token(self, token: str):
+        token = token.strip()
         rt = self.db.query(RefreshTokenORM).filter(RefreshTokenORM.token == token).first()
         if rt:
             rt.revoked = True

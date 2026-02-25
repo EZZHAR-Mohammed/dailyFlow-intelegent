@@ -33,7 +33,7 @@ class RefreshTokenORM(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    token = Column(String(512), unique=True, nullable=False, index=True)
+    token = Column(Text, nullable=False, index=False)
     expires_at = Column(DateTime, nullable=False)
     revoked = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
