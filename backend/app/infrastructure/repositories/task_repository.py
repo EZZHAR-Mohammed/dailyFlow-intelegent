@@ -65,14 +65,19 @@ class TaskRepository:
             TaskExecutionORM.task_id == task_id
         ).all()
 
-    def get_scheduled_slots(self, user_id: int, day: date) -> List[ScheduledSlotORM]:
+    def get_scheduled_slots(self, user_id: int, day: date, source: str = None) -> List[ScheduledSlotORM]:
         start = datetime.combine(day, datetime.min.time())
         end = datetime.combine(day, datetime.max.time())
-        return self.db.query(ScheduledSlotORM).filter(
+        q = self.db.query(ScheduledSlotORM).filter(
             ScheduledSlotORM.user_id == user_id,
             ScheduledSlotORM.start_at >= start,
             ScheduledSlotORM.end_at <= end
-        ).order_by(ScheduledSlotORM.start_at).all()
+        )
+        if source == "manual":
+            q = q.filter(ScheduledSlotORM.ai_generated == False)
+        elif source == "ai":
+            q = q.filter(ScheduledSlotORM.ai_generated == True)
+        return q.order_by(ScheduledSlotORM.start_at).all()
 
     def create_scheduled_slot(self, data: dict) -> ScheduledSlotORM:
         slot = ScheduledSlotORM(**data)
@@ -81,12 +86,18 @@ class TaskRepository:
         self.db.refresh(slot)
         return slot
 
-    def delete_slots_for_day(self, user_id: int, day: date):
+    def delete_slots_for_day(self, user_id: int, day: date, ai_only: bool = None):
         start = datetime.combine(day, datetime.min.time())
         end = datetime.combine(day, datetime.max.time())
-        self.db.query(ScheduledSlotORM).filter(
+        q = self.db.query(ScheduledSlotORM).filter(
             ScheduledSlotORM.user_id == user_id,
             ScheduledSlotORM.start_at >= start,
             ScheduledSlotORM.end_at <= end
-        ).delete()
+        )
+        if ai_only is True:
+            q = q.filter(ScheduledSlotORM.ai_generated == True)
+        elif ai_only is False:
+            q = q.filter(ScheduledSlotORM.ai_generated == False)
+        # ai_only=None → delete all (used by classic /generate endpoint)
+        q.delete()
         self.db.commit()

@@ -111,14 +111,18 @@ class ScheduledSlotORM(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
     start_at = Column(DateTime, nullable=False)
     end_at = Column(DateTime, nullable=False)
     is_break = Column(Boolean, default=False)
     ai_generated = Column(Boolean, default=False)
+    # source: 'manual' | 'ai' | 'auto' (classic engine)
+    source = Column(SAEnum("manual", "ai", "auto"), default="manual")
+    # notification_sent: True once the start reminder has been fired
+    notification_sent = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    task = relationship("TaskORM", back_populates="scheduled_slots")
+    task = relationship("TaskORM", back_populates="scheduled_slots", foreign_keys="ScheduledSlotORM.task_id")
 
 
 class TaskExecutionORM(Base):

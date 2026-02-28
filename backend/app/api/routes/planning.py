@@ -16,7 +16,8 @@ from app.api.schemas import (
     PlanRequest, PlanResponse, SlotResponse,
     AvailabilityCreate, AvailabilityResponse,
     EnergyProfileCreate, EnergyProfileResponse,
-    AIRecommendationResponse, MessageResponse
+    AIRecommendationResponse, MessageResponse,
+    SaveManualPlanRequest, ManualSlotInput
 )
 from app.core.logging import get_logger
 
@@ -237,7 +238,9 @@ def generate_plan(
                 "start_at": slot.start,
                 "end_at": slot.end,
                 "is_break": False,
-                "ai_generated": False
+                "ai_generated": False,
+                "source": "auto",
+                "notification_sent": False,
             })
         slots_response.append(SlotResponse(
             task_id=slot.task.id if slot.task else None,
@@ -297,12 +300,22 @@ def ai_recommend(
     # Build windows — fallback to 09:00–18:00 if no availability for this day
     windows, used_fallback = _build_windows_for_date(availabilities_orm, data.target_date)
 
+    # If earliest_start is provided (multi-task AI, anti-overlap), trim windows to start after it
+    if data.earliest_start:
+        trimmed = []
+        for (win_start, win_end) in windows:
+            effective_start = max(win_start, data.earliest_start)
+            if effective_start < win_end:
+                trimmed.append((effective_start, win_end))
+        windows = trimmed if trimmed else windows  # fallback to original if nothing left
+
     logger.info(
         "AI recommend",
         task_id=task_id,
         date=str(data.target_date),
         windows=len(windows),
-        used_fallback=used_fallback
+        used_fallback=used_fallback,
+        earliest_start=str(data.earliest_start) if data.earliest_start else None,
     )
 
     planner = SmartPlanner(energy_profiles_orm, [])
@@ -350,12 +363,13 @@ def ai_recommend(
 @router.get("/schedule/{target_date}", response_model=List[SlotResponse])
 def get_schedule(
     target_date: date,
+    source: str = None,   # "manual" | "ai" | None (all)
     db: Session = Depends(get_db),
     current_user: UserORM = Depends(get_current_user)
 ):
-    """Get already-generated scheduled slots for a specific date."""
+    """Get scheduled slots for a date. Use ?source=manual or ?source=ai to filter."""
     task_repo = TaskRepository(db)
-    slots = task_repo.get_scheduled_slots(current_user.id, target_date)
+    slots = task_repo.get_scheduled_slots(current_user.id, target_date, source=source)
     return [
         SlotResponse(
             task_id=s.task_id,
@@ -366,3 +380,56 @@ def get_schedule(
             ai_generated=s.ai_generated
         ) for s in slots
     ]
+
+
+# ──── Save manual plan ────────────────────────────────────────────────────────
+
+@router.post("/save", response_model=List[SlotResponse])
+def save_manual_plan(
+    data: SaveManualPlanRequest,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(get_current_user),
+):
+    """
+    Save a manually-built daily plan (custom task order + custom start times).
+    Replaces any existing slots for that date.
+    """
+    task_repo = TaskRepository(db)
+
+    # Delete only slots of the same source — manual never touches AI and vice versa
+    is_ai = (data.source == "ai")
+    task_repo.delete_slots_for_day(current_user.id, data.target_date, ai_only=is_ai)
+
+    slots_response = []
+    for slot in data.slots:
+        # Resolve task title
+        task_title = None
+        if slot.task_id:
+            task_orm = db.query(TaskORM).filter(
+                TaskORM.id == slot.task_id,
+                TaskORM.user_id == current_user.id
+            ).first()
+            task_title = task_orm.title if task_orm else None
+
+        task_repo.create_scheduled_slot({
+            "user_id": current_user.id,
+            "task_id": slot.task_id if not slot.is_break else None,
+            "start_at": slot.start_at,
+            "end_at": slot.end_at,
+            "is_break": slot.is_break,
+            "ai_generated": slot.ai_generated,
+            "source": data.source,
+            "notification_sent": False,
+        })
+
+        slots_response.append(SlotResponse(
+            task_id=slot.task_id,
+            task_title=task_title or ("☕ Pause" if slot.is_break else "Tâche"),
+            start_at=slot.start_at,
+            end_at=slot.end_at,
+            is_break=slot.is_break,
+            ai_generated=slot.ai_generated,
+        ))
+
+    logger.info("Manual plan saved", user_id=current_user.id, date=str(data.target_date), slots=len(slots_response))
+    return slots_response

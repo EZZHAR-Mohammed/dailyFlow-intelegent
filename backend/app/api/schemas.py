@@ -111,6 +111,7 @@ class EnergyProfileResponse(BaseModel):
 # ──── Planning ────────────────────────────────────────────────────────────────
 class PlanRequest(BaseModel):
     target_date: date
+    earliest_start: Optional[datetime] = None   # for AI multi-task: start after previous task ends
 
 class SlotResponse(BaseModel):
     task_id: Optional[int]
@@ -198,3 +199,17 @@ class MessageResponse(BaseModel):
 class PaginatedResponse(BaseModel):
     total: int
     items: List[Any]
+
+
+# ──── Manual Planning ─────────────────────────────────────────────────────────
+class ManualSlotInput(BaseModel):
+    task_id: Optional[int] = None
+    start_at: datetime
+    end_at: datetime
+    is_break: bool = False
+    ai_generated: bool = False
+
+class SaveManualPlanRequest(BaseModel):
+    target_date: date
+    slots: List[ManualSlotInput]
+    source: str = "manual"   # "manual" | "ai" — determines which slots to replace
