@@ -93,3 +93,37 @@ def get_upcoming_task_reminders(
     
     db.commit()
     return created
+
+
+@router.delete("/{notif_id}", response_model=MessageResponse)
+def delete_notification(
+    notif_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(get_current_user)
+):
+    """Delete a notification permanently."""
+    from app.infrastructure.database.models import NotificationORM
+    notif = db.query(NotificationORM).filter(
+        NotificationORM.id == notif_id,
+        NotificationORM.user_id == current_user.id
+    ).first()
+    if not notif:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Notification not found")
+    db.delete(notif)
+    db.commit()
+    return MessageResponse(message="Notification supprimée")
+
+
+@router.delete("", response_model=MessageResponse)
+def delete_all_notifications(
+    db: Session = Depends(get_db),
+    current_user: UserORM = Depends(get_current_user)
+):
+    """Delete all notifications for the current user."""
+    from app.infrastructure.database.models import NotificationORM
+    db.query(NotificationORM).filter(
+        NotificationORM.user_id == current_user.id
+    ).delete()
+    db.commit()
+    return MessageResponse(message="Toutes les notifications supprimées")

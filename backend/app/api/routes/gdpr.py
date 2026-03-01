@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from app.infrastructure.database.session import get_db
 from app.infrastructure.database.models import (
-    UserORM, TaskORM, ScoreORM, NotificationORM, TaskExecutionORM
+    UserORM, TaskORM, ScoreORM, NotificationORM, TaskExecutionORM,
+    AvailabilityORM, EnergyProfileORM
 )
 from app.api.dependencies.auth import get_current_user
 from app.api.schemas import MessageResponse
@@ -21,6 +22,8 @@ def export_my_data(
     tasks = db.query(TaskORM).filter(TaskORM.user_id == current_user.id).all()
     scores = db.query(ScoreORM).filter(ScoreORM.user_id == current_user.id).all()
     executions = db.query(TaskExecutionORM).filter(TaskExecutionORM.user_id == current_user.id).all()
+    availabilities = db.query(AvailabilityORM).filter(AvailabilityORM.user_id == current_user.id).all()
+    energy_profiles = db.query(EnergyProfileORM).filter(EnergyProfileORM.user_id == current_user.id).all()
 
     export = {
         "exported_at": datetime.utcnow().isoformat(),
@@ -29,11 +32,13 @@ def export_my_data(
             "email": current_user.email,
             "username": current_user.username,
             "created_at": current_user.created_at.isoformat(),
+            "ai_enabled": getattr(current_user, "ai_enabled", False),
         },
         "tasks": [
             {
                 "id": t.id, "title": t.title, "status": t.status,
-                "priority": t.priority, "due_date": str(t.due_date),
+                "priority": t.priority, "due_date": str(t.due_date) if t.due_date else None,
+                "estimated_duration_minutes": t.estimated_duration_minutes,
                 "created_at": t.created_at.isoformat()
             } for t in tasks
         ],
@@ -48,6 +53,17 @@ def export_my_data(
                 "task_id": e.task_id, "started_at": e.started_at.isoformat(),
                 "focus_score": e.focus_score, "energy_level": e.energy_level_during
             } for e in executions
+        ],
+        "availabilities": [
+            {
+                "id": a.id, "day_of_week": a.day_of_week,
+                "start_time": str(a.start_time), "end_time": str(a.end_time)
+            } for a in availabilities
+        ],
+        "energy_profiles": [
+            {
+                "id": e.id, "period": e.period, "energy_level": e.energy_level
+            } for e in energy_profiles
         ]
     }
     return JSONResponse(content=export)
