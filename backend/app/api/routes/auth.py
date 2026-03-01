@@ -23,17 +23,24 @@ logger = get_logger(__name__)
 @router.post("/register", response_model=UserResponse, status_code=201)
 def register(data: RegisterRequest, db: Session = Depends(get_db)):
     """Register a new user account."""
+    if not data.terms_accepted:
+        raise HTTPException(status_code=400, detail="Vous devez accepter les conditions d'utilisation")
+
     repo = UserRepository(db)
     if repo.get_by_email(data.email):
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="Cet email est déjà utilisé")
     if repo.get_by_username(data.username):
-        raise HTTPException(status_code=400, detail="Username already taken")
+        raise HTTPException(status_code=400, detail="Ce nom d'utilisateur est déjà pris")
 
     user = repo.create(
         email=data.email,
         username=data.username,
-        hashed_password=hash_password(data.password)
+        hashed_password=hash_password(data.password),
     )
+    # Save terms acceptance directly (works even if repo.create doesn't support it)
+    user.terms_accepted = True
+    db.commit()
+
     repo.create_audit_log(user.id, "USER_REGISTER", "user", user.id)
     logger.info("User registered", user_id=user.id, email=user.email)
     return user
@@ -46,9 +53,9 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
     user = repo.get_by_email(data.email)
     if not user or not verify_password(data.password, user.hashed_password):
         repo.create_audit_log(None, "LOGIN_FAILED", details={"email": data.email})
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
     if not user.is_active:
-        raise HTTPException(status_code=403, detail="Account deactivated")
+        raise HTTPException(status_code=403, detail="Compte désactivé")
 
     access_token = create_access_token({"sub": str(user.id)})
     refresh_token = create_refresh_token({"sub": str(user.id)})

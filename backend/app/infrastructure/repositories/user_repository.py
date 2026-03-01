@@ -17,8 +17,17 @@ class UserRepository:
     def get_by_username(self, username: str) -> Optional[UserORM]:
         return self.db.query(UserORM).filter(UserORM.username == username).first()
 
-    def create(self, email: str, username: str, hashed_password: str) -> UserORM:
-        user = UserORM(email=email, username=username, hashed_password=hashed_password)
+    def create(self, email: str, username: str, hashed_password: str,
+               email_verified: bool = False, email_verify_token: str = None,
+               terms_accepted: bool = False) -> UserORM:
+        user = UserORM(
+            email=email,
+            username=username,
+            hashed_password=hashed_password,
+            email_verified=email_verified,
+            email_verify_token=email_verify_token,
+            terms_accepted=terms_accepted,
+        )
         self.db.add(user)
         self.db.commit()
         self.db.refresh(user)

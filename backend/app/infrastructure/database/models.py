@@ -17,6 +17,9 @@ class UserORM(Base):
     role = Column(SAEnum("user", "admin"), default="user")
     is_active = Column(Boolean, default=True)
     ai_enabled = Column(Boolean, default=True)
+    email_verified = Column(Boolean, default=False)          # must verify email before login
+    email_verify_token = Column(String(255), nullable=True)  # one-time token sent by email
+    terms_accepted = Column(Boolean, default=False)          # user accepted CGU at register
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

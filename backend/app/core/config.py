@@ -37,8 +37,10 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = 60
 
     class Config:
-        env_file = ".env"
+        # Search .env in current dir AND backend/ dir
+        env_file = (".env", "backend/.env", "../.env")
         env_file_encoding = "utf-8"
+        extra = "ignore"
 
 
 settings = Settings()

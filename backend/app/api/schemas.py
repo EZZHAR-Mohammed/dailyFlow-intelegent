@@ -9,6 +9,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=8)
+    terms_accepted: bool = False
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -29,6 +30,8 @@ class UserResponse(BaseModel):
     role: str
     is_active: bool
     ai_enabled: bool
+    email_verified: bool = False
+    terms_accepted: bool = False
     created_at: datetime
 
     class Config:
