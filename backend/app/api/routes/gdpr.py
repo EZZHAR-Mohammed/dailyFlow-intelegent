@@ -57,7 +57,7 @@ def export_my_data(
         "availabilities": [
             {
                 "id": a.id, "day_of_week": a.day_of_week,
-                "start_time": str(a.start_time), "end_time": str(a.end_time)
+                "start_time": a.start_time.strftime("%H:%M") if a.start_time else None, "end_time": a.end_time.strftime("%H:%M") if a.end_time else None
             } for a in availabilities
         ],
         "energy_profiles": [
